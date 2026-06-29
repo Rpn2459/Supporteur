@@ -486,18 +486,42 @@ function spinWheel() {
   if (wheelSpinning) return;
   wheelSpinning = true;
   document.getElementById('spin-btn').disabled = true;
-  document.getElementById('spin-btn').textContent = '🌀 En cours…';
-  const n = WHEEL_SEGMENTS.length, arc = (2 * Math.PI) / n;
+  document.getElementById('spin-btn').textContent = '\u{1F300} En cours\u2026';
+
+  const n = WHEEL_SEGMENTS.length;
+  const arc = (2 * Math.PI) / n;
   const winIdx = Math.floor(Math.random() * n);
   winSegment = WHEEL_SEGMENTS[winIdx];
-  const totalRotation = (6 + Math.random() * 4) * 2 * Math.PI + (-(winIdx * arc + arc / 2) + Math.PI / 2) - (wheelAngle % (2 * Math.PI));
-  const duration = 4500, startTime = performance.now(), startAngle = wheelAngle;
+
+  // Calcul propre : on repart toujours de angle=0 pour éviter toute dérive cumulative
+  // Le pointeur est en haut (12h = -PI/2 dans le repère canvas)
+  // On veut que le CENTRE du segment winIdx pointe vers le haut
+  // Centre du segment winIdx sans rotation = winIdx * arc + arc/2 (depuis -PI/2)
+  // Donc l'angle de rotation pour aligner : -(winIdx * arc + arc/2) + 0
+  // (car drawWheel soustrait PI/2 à chaque segment via `start = angle + i*arc - PI/2`)
+  // => finalAngle = -(winIdx * arc + arc/2), normalisé positif + tours complets
+  const rawTarget = -(winIdx * arc + arc / 2);
+  const normalised = ((rawTarget % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const spins = 6 + Math.floor(Math.random() * 5);
+  const finalAngle = normalised + spins * 2 * Math.PI;
+
+  // Reset de l'angle de départ à 0 (évite dérive sur respins)
+  wheelAngle = 0;
+  const duration = 4500;
+  const startTime = performance.now();
+
   function animate(now) {
     const t = Math.min((now - startTime) / duration, 1);
-    wheelAngle = startAngle + totalRotation * (1 - Math.pow(1 - t, 4));
+    const ease = 1 - Math.pow(1 - t, 4);
+    wheelAngle = finalAngle * ease;
     drawWheel(wheelAngle);
-    if (t < 1) requestAnimationFrame(animate);
-    else setTimeout(showWheelResult, 700);
+    if (t < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      wheelAngle = finalAngle;
+      drawWheel(wheelAngle);
+      setTimeout(showWheelResult, 700);
+    }
   }
   requestAnimationFrame(animate);
 }
